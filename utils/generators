@@ -1,1 +1,107 @@
 utils/generators.py
+from docx import Document
+from docx.shared import Pt, Inches, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+import io
+from datetime import datetime
+
+def create_scc_template():
+    """Crée un modèle vierge basé sur le document partagé"""
+    doc = Document()
+    
+    # Configuration des styles
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Arial'
+    font.size = Pt(10)
+
+    # En-tête
+    title = doc.add_paragraph()
+    title_run = title.add_run("Prénom NOM")
+    title_run.font.size = Pt(20)
+    title_run.font.bold = True
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+    # Sous-titre
+    subtitle = doc.add_paragraph()
+    subtitle_run = subtitle.add_run("Technicien Support de Proximité")
+    subtitle_run.font.size = Pt(16)
+    subtitle_run.font.bold = True
+
+    # Expérience
+    exp_line = doc.add_paragraph()
+    exp_line.add_run("XX ans d'expérience").italic = True
+
+    # Section Compétences Techniques
+    doc.add_paragraph().add_run("COMPÉTENCES TECHNIQUES").bold = True
+    
+    # Tableau des compétences (3x2)
+    table = doc.add_table(rows=3, cols=2)
+    table.style = 'Table Grid'
+    
+    # En-têtes
+    table.cell(0, 0).text = "SYSTÈMES"
+    table.cell(0, 1).text = "RÉSEAUX"
+    table.cell(1, 0).text = "OUTILS"
+    table.cell(1, 1).text = "AUTRES COMPÉTENCES"
+    
+    # Remplissage vide
+    for row in range(3):
+        for col in range(2):
+            if not table.cell(row, col).text:
+                table.cell(row, col).text = "-"
+
+    return doc
+
+def fill_scc_template(doc, cv_data):
+    """Remplit le template avec les données extraites"""
+    
+    # En-tête
+    for paragraph in doc.paragraphs:
+        if "Prénom NOM" in paragraph.text:
+            paragraph.text = paragraph.text.replace("Prénom NOM", cv_data.get('full_name', 'N.P.'))
+        
+        if "Technicien Support de Proximité" in paragraph.text:
+            paragraph.text = paragraph.text.replace(
+                "Technicien Support de Proximité", 
+                cv_data.get('job_title', 'Poste non spécifié')
+            )
+        
+        if "XX ans d'expérience" in paragraph.text:
+            exp_years = calculate_experience_years(cv_data.get('experiences', []))
+            paragraph.text = paragraph.text.replace("XX", str(exp_years))
+
+    # Compétences techniques
+    if 'skills' in cv_data:
+        for table in doc.tables:
+            if "SYSTÈMES" in table.cell(0, 0).text:
+                fill_skills_table(table, cv_data['skills'])
+    
+    return doc
+
+def calculate_experience_years(experiences):
+    """Calcule les années d'expérience"""
+    if not experiences:
+        return 0
+    
+    first_date_str = experiences[0].get('start_date', '')
+    if not first_date_str:
+        return 0
+        
+    try:
+        first_date = datetime.strptime(first_date_str, '%m/%Y')
+        delta = datetime.now() - first_date
+        return round(delta.days / 365)
+    except:
+        return 0
+
+def generate_scc_document(cv_data):
+    """Point d'entrée principal pour la génération"""
+    doc = create_scc_template()
+    doc = fill_scc_template(doc, cv_data)
+    
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+    
+    return output
